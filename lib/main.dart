@@ -1,9 +1,43 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:screen_retriever/screen_retriever.dart';
+import 'package:window_manager_plus/window_manager_plus.dart';
 
-void main() {
+const Color windowsChromaKey = Color(0xFFFF00FF);
+
+Future<void> main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isWindows || Platform.isMacOS) {
+    final windowId = args.isEmpty ? 0 : int.tryParse(args.first) ?? 0;
+    await WindowManagerPlus.ensureInitialized(windowId);
+
+    final windowOptions = WindowOptions(
+      size: Size(180, 180),
+      center: true,
+      backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
+      titleBarStyle: TitleBarStyle.hidden,
+      skipTaskbar: true,
+    );
+
+    WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
+      await WindowManagerPlus.current.setAsFrameless();
+      await WindowManagerPlus.current.setResizable(false);
+      await WindowManagerPlus.current.setHasShadow(false);
+      await WindowManagerPlus.current.setOpacity(1);
+      await WindowManagerPlus.current.setVisibleOnAllWorkspaces(true);
+      await WindowManagerPlus.current.setAlwaysOnTop(true);
+      await WindowManagerPlus.current.setBackgroundColor(
+        Platform.isWindows ? windowsChromaKey : Colors.transparent,
+      );
+      await WindowManagerPlus.current.show();
+      await WindowManagerPlus.current.focus();
+    });
+  }
+
   runApp(const AmeathPetApp());
 }
 
@@ -12,12 +46,16 @@ class AmeathPetApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWindows = Platform.isWindows;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Ameath Pet',
       theme: ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6B8E23)),
+        scaffoldBackgroundColor:
+            isWindows ? windowsChromaKey : Colors.transparent,
+        canvasColor: isWindows ? windowsChromaKey : Colors.transparent,
       ),
       home: const PetStage(),
     );
@@ -33,6 +71,8 @@ class PetStage extends StatefulWidget {
 
 class _PetStageState extends State<PetStage> {
   static const double petSize = 160;
+  static const double desktopWindowSize = 180;
+  static const double desktopRoamSpeed = 100.0; // px/sec
 
   final List<String> idleGifs = const [
     'gifs/idle1.gif',
@@ -44,19 +84,42 @@ class _PetStageState extends State<PetStage> {
   String currentGif = 'gifs/idle1.gif';
   Offset position = const Offset(120, 220);
   Timer? idleTimer;
+  Timer? roamTimer;
   bool isDragging = false;
   bool isMoving = false;
+  bool faceLeft = false;
+  Offset? screenOrigin;
+  Size? screenSize;
 
   @override
   void initState() {
     super.initState();
     _startIdleLoop();
+    _initRoamLoop();
   }
 
   @override
   void dispose() {
     idleTimer?.cancel();
+    roamTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initRoamLoop() async {
+    if (!(Platform.isWindows || Platform.isMacOS)) return;
+
+    final display = await screenRetriever.getPrimaryDisplay();
+    final size = display.visibleSize ?? display.size;
+    setState(() {
+      screenOrigin = Offset.zero;
+      screenSize = Size(size.width.toDouble(), size.height.toDouble());
+    });
+
+    roamTimer?.cancel();
+    roamTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (isDragging || isMoving) return;
+      _roamDesktop();
+    });
   }
 
   void _startIdleLoop() {
@@ -80,10 +143,17 @@ class _PetStageState extends State<PetStage> {
   void _onPanStart(DragStartDetails details) {
     isDragging = true;
     _setGif('gifs/drag.gif');
+    if (Platform.isWindows || Platform.isMacOS) {
+      WindowManagerPlus.current.startDragging();
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
+    if (Platform.isWindows || Platform.isMacOS) return;
     setState(() {
+      if (details.delta.dx.abs() > 0.1) {
+        faceLeft = details.delta.dx < 0;
+      }
       position += details.delta;
     });
   }
@@ -95,6 +165,68 @@ class _PetStageState extends State<PetStage> {
 
   void _onMoveTap() {
     if (isMoving || isDragging) return;
+    if (Platform.isWindows || Platform.isMacOS) {
+      _roamDesktop();
+      return;
+    }
+    _roamMobile();
+  }
+
+  Future<void> _roamDesktop() async {
+    final origin = screenOrigin ?? Offset.zero;
+    final size = screenSize ?? const Size(1280, 720);
+    final next = Offset(
+      origin.dx + Random().nextDouble() * (size.width - desktopWindowSize),
+      origin.dy + Random().nextDouble() * (size.height - desktopWindowSize),
+    );
+    final start = await WindowManagerPlus.current.getPosition();
+
+    setState(() {
+      isMoving = true;
+      currentGif = 'gifs/move.gif';
+      faceLeft = next.dx < start.dx;
+    });
+    await _animateWindowTo(next, speedPxPerSec: desktopRoamSpeed);
+    setState(() {
+      isMoving = false;
+      currentGif = 'gifs/idle1.gif';
+    });
+  }
+
+  Future<void> _animateWindowTo(
+    Offset target, {
+    required double speedPxPerSec,
+  }) async {
+    final start = await WindowManagerPlus.current.getPosition();
+    final distance = (target - start).distance;
+    final durationMs = max(200, (distance / speedPxPerSec * 1000).round());
+    final duration = Duration(milliseconds: durationMs);
+    const frame = Duration(milliseconds: 16);
+    final steps = max(1, duration.inMilliseconds ~/ frame.inMilliseconds);
+    var tick = 0;
+
+    final completer = Completer<void>();
+    Timer.periodic(frame, (timer) async {
+      tick += 1;
+      final t = tick / steps;
+      if (t >= 1) {
+        timer.cancel();
+        await WindowManagerPlus.current.setPosition(target);
+        completer.complete();
+        return;
+      }
+      final eased = Curves.easeInOut.transform(t);
+      final lerp = Offset(
+        start.dx + (target.dx - start.dx) * eased,
+        start.dy + (target.dy - start.dy) * eased,
+      );
+      await WindowManagerPlus.current.setPosition(lerp);
+    });
+
+    return completer.future;
+  }
+
+  void _roamMobile() {
     isMoving = true;
     _setGif('gifs/move.gif');
     final size = MediaQuery.sizeOf(context);
@@ -104,6 +236,7 @@ class _PetStageState extends State<PetStage> {
     );
 
     final start = position;
+    faceLeft = next.dx < start.dx;
     const steps = 30;
     var tick = 0;
     Timer.periodic(const Duration(milliseconds: 16), (timer) {
@@ -140,55 +273,40 @@ class _PetStageState extends State<PetStage> {
       position = clamped;
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F3EF),
-      body: Stack(
-        children: [
-          Positioned(
-            left: position.dx,
-            top: position.dy,
-            child: GestureDetector(
-              onPanStart: _onPanStart,
-              onPanUpdate: _onPanUpdate,
-              onPanEnd: _onPanEnd,
-              onDoubleTap: _onMoveTap,
-              child: SizedBox(
-                width: petSize,
-                height: petSize,
-                child: Image.asset(
-                  currentGif,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                ),
-              ),
-            ),
+    final isDesktop = Platform.isWindows || Platform.isMacOS;
+    final pet = GestureDetector(
+      onPanStart: _onPanStart,
+      onPanUpdate: _onPanUpdate,
+      onPanEnd: _onPanEnd,
+      onDoubleTap: _onMoveTap,
+      child: SizedBox(
+        width: petSize,
+        height: petSize,
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.diagonal3Values(faceLeft ? -1 : 1, 1, 1),
+          child: Image.asset(
+            currentGif,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
           ),
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    blurRadius: 16,
-                    color: Color(0x22000000),
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Text(
-                  'Drag Ameath around. Double-tap to make it roam.',
-                  style: TextStyle(fontSize: 14),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
+    );
+
+    return Scaffold(
+      backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
+      body: isDesktop
+          ? Center(child: pet)
+          : Stack(
+              children: [
+                Positioned(
+                  left: position.dx,
+                  top: position.dy,
+                  child: pet,
+                ),
+              ],
+            ),
     );
   }
 }

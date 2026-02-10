@@ -8,6 +8,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  window_manager_plus: ^1.0.5
+  screen_retriever: ^0.2.0
 
 flutter:
   uses-material-design: true
