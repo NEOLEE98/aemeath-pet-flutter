@@ -18,7 +18,7 @@ class SettingsPage extends StatelessWidget {
         return Scaffold(
           backgroundColor: const Color(0xFFF5F3EF),
           appBar: AppBar(
-            title: const Text('Pet Settings'),
+            title: const Text('Ameath Settings'),
             backgroundColor: const Color(0xFFF5F3EF),
             foregroundColor: Colors.black,
           ),
@@ -27,7 +27,7 @@ class SettingsPage extends StatelessWidget {
             children: [
               if (!Platform.isAndroid)
                 _Section(
-                  title: 'Pet Size',
+                  title: 'Ameath Size',
                   child: _SliderRow(
                     label: 'Size',
                     value: settings.petScale,
