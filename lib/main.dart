@@ -13,7 +13,6 @@ import 'settings_page.dart';
 import 'tray_controller.dart';
 import 'window_args.dart';
 
-const Color windowsChromaKey = Color(0xFFFF00FF);
 final SettingsController settingsController = SettingsController();
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -60,7 +59,7 @@ Future<void> _configurePetWindow() async {
   final windowOptions = WindowOptions(
     size: Size(windowSize, windowSize),
     center: true,
-    backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
+    backgroundColor: Colors.transparent,
     titleBarStyle: TitleBarStyle.hidden,
     skipTaskbar: true,
   );
@@ -76,9 +75,7 @@ Future<void> _configurePetWindow() async {
     await WindowManagerPlus.current.setOpacity(1);
     await WindowManagerPlus.current.setVisibleOnAllWorkspaces(true);
     await WindowManagerPlus.current.setAlwaysOnTop(true);
-    await WindowManagerPlus.current.setBackgroundColor(
-      Platform.isWindows ? windowsChromaKey : Colors.transparent,
-    );
+    await WindowManagerPlus.current.setBackgroundColor(Colors.transparent);
     await WindowManagerPlus.current.show();
     await WindowManagerPlus.current.focus();
   });
@@ -273,7 +270,6 @@ class _AemeathPetAppState extends State<AemeathPetApp> {
 
   @override
   Widget build(BuildContext context) {
-    final isWindows = Platform.isWindows;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Aemeath Pet',
@@ -282,9 +278,8 @@ class _AemeathPetAppState extends State<AemeathPetApp> {
       theme: ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6B8E23)),
-        scaffoldBackgroundColor:
-            isWindows ? windowsChromaKey : Colors.transparent,
-        canvasColor: isWindows ? windowsChromaKey : Colors.transparent,
+        scaffoldBackgroundColor: Colors.transparent,
+        canvasColor: Colors.transparent,
       ),
       home: Platform.isAndroid
           ? AndroidOverlayLauncher(controller: settingsController)
@@ -981,7 +976,7 @@ class _PetStageState extends State<PetStage> {
     );
 
     return Scaffold(
-      backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
+      backgroundColor: Colors.transparent,
       body: (isDesktop || isAndroidOverlay)
           ? Stack(
               children: [
