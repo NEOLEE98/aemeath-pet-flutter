@@ -8,9 +8,11 @@ on:
       - 'v*'
     paths-ignore:
       - '.github/**'
+      - 'README.md'
   pull_request:
     paths-ignore:
       - '.github/**'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:
