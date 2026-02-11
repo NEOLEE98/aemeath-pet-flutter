@@ -25,7 +25,6 @@ constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
-constexpr COLORREF kTransparentColor = RGB(255, 0, 255);
 
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
@@ -145,11 +144,11 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
-  // Enable per-pixel transparency with a chroma key.
-  // The Flutter surface will render the background as magenta.
-  const LONG_PTR ex_style = GetWindowLongPtr(window, GWL_EXSTYLE);
-  SetWindowLongPtr(window, GWL_EXSTYLE, ex_style | WS_EX_LAYERED);
-  SetLayeredWindowAttributes(window, kTransparentColor, 0, LWA_COLORKEY);
+  // Keep the pet window above normal windows.
+  if (title == L"aemeath_pet") {
+    SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
 
   UpdateTheme(window);
 
