@@ -539,6 +539,11 @@ class _PetStageState extends State<PetStage> {
   Offset position = const Offset(120, 220);
   Timer? idleTimer;
   Timer? roamTimer;
+  Timer? _windowMoveTimer;
+  Timer? _mobileMoveTimer;
+  Timer? _overlayMoveTimer;
+  Completer<void>? _windowMoveCompleter;
+  Completer<void>? _overlayMoveCompleter;
   StreamSubscription<dynamic>? overlaySubscription;
   Timer? overlayPosTimer;
   Size? overlayScreenSize;
@@ -694,6 +699,7 @@ class _PetStageState extends State<PetStage> {
   }
 
   void _onPanStart(DragStartDetails details) {
+    _stopRoam(resetGif: false);
     isDragging = true;
     _setGif('assets/drag.gif');
     if (Platform.isWindows || Platform.isMacOS) {
@@ -727,6 +733,7 @@ class _PetStageState extends State<PetStage> {
   }
 
   Future<void> _roamDesktop() async {
+    if (isDragging) return;
     final origin = screenOrigin ?? Offset.zero;
     final size = screenSize ?? const Size(1280, 720);
     final windowSize = settings.desktopWindowSize;
@@ -752,6 +759,8 @@ class _PetStageState extends State<PetStage> {
     Offset target, {
     required double speedPxPerSec,
   }) async {
+    _windowMoveTimer?.cancel();
+    _safeComplete(_windowMoveCompleter);
     final start = await WindowManagerPlus.current.getPosition();
     final distance = (target - start).distance;
     final durationMs =
@@ -762,13 +771,19 @@ class _PetStageState extends State<PetStage> {
     var tick = 0;
 
     final completer = Completer<void>();
-    Timer.periodic(frame, (timer) async {
+    _windowMoveCompleter = completer;
+    _windowMoveTimer = Timer.periodic(frame, (timer) async {
+      if (isDragging) {
+        timer.cancel();
+        _safeComplete(completer);
+        return;
+      }
       tick += 1;
       final t = tick / steps;
       if (t >= 1) {
         timer.cancel();
         await WindowManagerPlus.current.setPosition(target);
-        completer.complete();
+        _safeComplete(completer);
         return;
       }
       final eased = Curves.easeInOut.transform(t);
@@ -783,6 +798,7 @@ class _PetStageState extends State<PetStage> {
   }
 
   void _roamMobile() {
+    if (isDragging) return;
     if (Platform.isAndroid && isOverlayApp) {
       _roamAndroidOverlay();
       return;
@@ -807,6 +823,7 @@ class _PetStageState extends State<PetStage> {
   }
 
   Future<void> _roamAndroidOverlay() async {
+    if (isDragging) return;
     final overlaySize = settings.androidOverlaySize;
     final screenSize = _getAndroidScreenSize() ??
         (WidgetsBinding.instance.platformDispatcher.views.first.physicalSize /
@@ -888,6 +905,8 @@ class _PetStageState extends State<PetStage> {
     Offset target, {
     required double speedPxPerSec,
   }) async {
+    _overlayMoveTimer?.cancel();
+    _safeComplete(_overlayMoveCompleter);
     final distance = (target - start).distance;
     final durationMs =
         max(_minMoveDurationMs, (distance / speedPxPerSec * 1000).round());
@@ -897,7 +916,13 @@ class _PetStageState extends State<PetStage> {
     var tick = 0;
 
     final completer = Completer<void>();
-    Timer.periodic(frame, (timer) async {
+    _overlayMoveCompleter = completer;
+    _overlayMoveTimer = Timer.periodic(frame, (timer) async {
+      if (isDragging) {
+        timer.cancel();
+        _safeComplete(completer);
+        return;
+      }
       tick += 1;
       final t = tick / steps;
       if (t >= 1) {
@@ -910,7 +935,7 @@ class _PetStageState extends State<PetStage> {
             overlayPosition = target;
           });
         }
-        completer.complete();
+        _safeComplete(completer);
         return;
       }
       final eased = Curves.easeInOut.transform(t);
@@ -936,6 +961,7 @@ class _PetStageState extends State<PetStage> {
     Offset target, {
     required double speedPxPerSec,
   }) {
+    _mobileMoveTimer?.cancel();
     final distance = (target - start).distance;
     final durationMs =
         max(_minMoveDurationMs, (distance / speedPxPerSec * 1000).round());
@@ -944,7 +970,14 @@ class _PetStageState extends State<PetStage> {
     final steps = max(1, duration.inMilliseconds ~/ frame.inMilliseconds);
     var tick = 0;
 
-    Timer.periodic(frame, (timer) {
+    _mobileMoveTimer = Timer.periodic(frame, (timer) {
+      if (isDragging) {
+        timer.cancel();
+        setState(() {
+          isMoving = false;
+        });
+        return;
+      }
       tick += 1;
       final t = tick / steps;
       if (t >= 1) {
@@ -965,6 +998,32 @@ class _PetStageState extends State<PetStage> {
         position = lerp;
       });
     });
+  }
+
+  void _stopRoam({bool resetGif = true}) {
+    _windowMoveTimer?.cancel();
+    _windowMoveTimer = null;
+    _safeComplete(_windowMoveCompleter);
+    _windowMoveCompleter = null;
+    _mobileMoveTimer?.cancel();
+    _mobileMoveTimer = null;
+    _overlayMoveTimer?.cancel();
+    _overlayMoveTimer = null;
+    _safeComplete(_overlayMoveCompleter);
+    _overlayMoveCompleter = null;
+    if (isMoving) {
+      setState(() {
+        isMoving = false;
+        if (resetGif) {
+          currentGif = 'assets/idle1.gif';
+        }
+      });
+    }
+  }
+
+  void _safeComplete(Completer<void>? completer) {
+    if (completer == null || completer.isCompleted) return;
+    completer.complete();
   }
 
   @override
