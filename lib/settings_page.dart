@@ -55,15 +55,16 @@ class SettingsPage extends StatelessWidget {
                       ),
                     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
                       const SizedBox(height: 12),
-                    _SliderRow(
-                      label: 'Mobile',
-                      value: settings.mobileRoamSpeed,
-                      min: 10,
-                      max: 320,
-                      divisions: 31,
-                      format: (v) => '${v.round()} px/s',
-                      onChanged: controller.setMobileRoamSpeed,
-                    ),
+                    if (Platform.isAndroid || Platform.isIOS)
+                      _SliderRow(
+                        label: 'Mobile',
+                        value: settings.mobileRoamSpeed,
+                        min: 10,
+                        max: 320,
+                        divisions: 31,
+                        format: (v) => '${v.round()} px/s',
+                        onChanged: controller.setMobileRoamSpeed,
+                      ),
                   ],
                 ),
               ),

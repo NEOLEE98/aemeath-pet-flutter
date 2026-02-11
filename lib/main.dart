@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:screen_retriever/screen_retriever.dart';
@@ -10,6 +11,7 @@ import 'package:window_manager_plus/window_manager_plus.dart';
 import 'app_settings.dart';
 import 'settings_page.dart';
 import 'tray_controller.dart';
+import 'window_args.dart';
 
 const Color windowsChromaKey = Color(0xFFFF00FF);
 final SettingsController settingsController = SettingsController();
@@ -20,37 +22,27 @@ Future<void> main(List<String> args) async {
   await settingsController.load();
   await settingsController.setupLaunchAtStartup();
 
-  if (Platform.isWindows || Platform.isMacOS) {
-    final windowId = args.isEmpty ? 0 : int.tryParse(args.first) ?? 0;
+  WindowArgs windowArgs = WindowArgs.main;
+  WindowController? windowController;
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    windowController = await WindowController.fromCurrentEngine();
+    windowArgs = WindowArgs.fromJsonString(windowController.arguments);
+    final windowId = int.tryParse(windowController.windowId) ?? 0;
     await WindowManagerPlus.ensureInitialized(windowId);
-
-    final windowSize = settingsController.value.desktopWindowSize;
-    final windowOptions = WindowOptions(
-      size: Size(windowSize, windowSize),
-      center: true,
-      backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
-      titleBarStyle: TitleBarStyle.hidden,
-      skipTaskbar: true,
-    );
-
-    WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
-      await WindowManagerPlus.current.setAsFrameless();
-      await WindowManagerPlus.current.setResizable(false);
-      await WindowManagerPlus.current.setMinimumSize(Size(windowSize, windowSize));
-      await WindowManagerPlus.current.setMaximumSize(Size(windowSize, windowSize));
-      await WindowManagerPlus.current.setHasShadow(false);
-      await WindowManagerPlus.current.setOpacity(1);
-      await WindowManagerPlus.current.setVisibleOnAllWorkspaces(true);
-      await WindowManagerPlus.current.setAlwaysOnTop(true);
-      await WindowManagerPlus.current.setBackgroundColor(
-        Platform.isWindows ? windowsChromaKey : Colors.transparent,
-      );
-      await WindowManagerPlus.current.show();
-      await WindowManagerPlus.current.focus();
-    });
+    if (windowArgs.type == WindowArgs.typeSettings) {
+      await _configureSettingsWindow();
+      await _registerSettingsWindowHandlers(windowController);
+    } else {
+      await _configurePetWindow();
+      await _registerMainWindowHandlers(windowController);
+    }
   }
 
-  runApp(const AemeathPetApp());
+  if (windowArgs.type == WindowArgs.typeSettings) {
+    runApp(const SettingsWindowApp());
+  } else {
+    runApp(const AemeathPetApp());
+  }
 }
 
 bool isOverlayApp = false;
@@ -61,6 +53,184 @@ Future<void> overlayMain() async {
   isOverlayApp = true;
   await settingsController.load();
   runApp(const AemeathOverlayApp());
+}
+
+Future<void> _configurePetWindow() async {
+  final windowSize = settingsController.value.desktopWindowSize;
+  final windowOptions = WindowOptions(
+    size: Size(windowSize, windowSize),
+    center: true,
+    backgroundColor: Platform.isWindows ? windowsChromaKey : Colors.transparent,
+    titleBarStyle: TitleBarStyle.hidden,
+    skipTaskbar: true,
+  );
+
+  WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
+    await WindowManagerPlus.current.setAsFrameless();
+    await WindowManagerPlus.current.setResizable(false);
+    await WindowManagerPlus.current
+        .setMinimumSize(Size(windowSize, windowSize));
+    await WindowManagerPlus.current
+        .setMaximumSize(Size(windowSize, windowSize));
+    await WindowManagerPlus.current.setHasShadow(false);
+    await WindowManagerPlus.current.setOpacity(1);
+    await WindowManagerPlus.current.setVisibleOnAllWorkspaces(true);
+    await WindowManagerPlus.current.setAlwaysOnTop(true);
+    await WindowManagerPlus.current.setBackgroundColor(
+      Platform.isWindows ? windowsChromaKey : Colors.transparent,
+    );
+    await WindowManagerPlus.current.show();
+    await WindowManagerPlus.current.focus();
+  });
+}
+
+Future<void> _configureSettingsWindow() async {
+  const settingsSize = Size(720, 720);
+  const minSize = Size(520, 640);
+  const maxSize = Size(1400, 1200);
+  final windowOptions = WindowOptions(
+    size: settingsSize,
+    center: true,
+    backgroundColor: const Color(0xFFF5F3EF),
+    title: 'Aemeath Settings',
+    titleBarStyle: TitleBarStyle.normal,
+    skipTaskbar: false,
+  );
+
+  WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
+    await WindowManagerPlus.current.setResizable(true);
+    await WindowManagerPlus.current.setMinimumSize(minSize);
+    await WindowManagerPlus.current.setMaximumSize(maxSize);
+    await WindowManagerPlus.current.setHasShadow(true);
+    await WindowManagerPlus.current.setAlwaysOnTop(false);
+    await WindowManagerPlus.current.setVisibleOnAllWorkspaces(false);
+    await WindowManagerPlus.current.setBackgroundColor(
+      const Color(0xFFF5F3EF),
+    );
+    await WindowManagerPlus.current.show();
+    await WindowManagerPlus.current.focus();
+  });
+}
+
+Future<void> _registerMainWindowHandlers(
+  WindowController windowController,
+) async {
+  await windowController.setWindowMethodHandler((call) async {
+    switch (call.method) {
+      case 'reloadSettings':
+        await settingsController.load();
+        return true;
+      case 'applySettings':
+        final args = call.arguments;
+        if (args is Map) {
+          settingsController.value = AppSettings(
+            petScale: (args['petScale'] as num?)?.toDouble() ??
+                settingsController.value.petScale,
+            desktopRoamSpeed:
+                (args['desktopRoamSpeed'] as num?)?.toDouble() ??
+                    settingsController.value.desktopRoamSpeed,
+            mobileRoamSpeed:
+                (args['mobileRoamSpeed'] as num?)?.toDouble() ??
+                    settingsController.value.mobileRoamSpeed,
+            androidOverlayScale:
+                (args['androidOverlayScale'] as num?)?.toDouble() ??
+                    settingsController.value.androidOverlayScale,
+            showOverlayDebug: args['showOverlayDebug'] as bool? ??
+                settingsController.value.showOverlayDebug,
+            launchAtStartup: args['launchAtStartup'] as bool? ??
+                settingsController.value.launchAtStartup,
+          );
+          return true;
+        }
+        return false;
+      case 'focus':
+        await WindowManagerPlus.current.show();
+        await WindowManagerPlus.current.focus();
+        return true;
+    }
+    return null;
+  });
+}
+
+Future<void> _registerSettingsWindowHandlers(
+  WindowController windowController,
+) async {
+  await windowController.setWindowMethodHandler((call) async {
+    switch (call.method) {
+      case 'focus':
+        await WindowManagerPlus.current.show();
+        await WindowManagerPlus.current.focus();
+        return true;
+    }
+    return null;
+  });
+}
+
+class SettingsWindowApp extends StatefulWidget {
+  const SettingsWindowApp({super.key});
+
+  @override
+  State<SettingsWindowApp> createState() => _SettingsWindowAppState();
+}
+
+class _SettingsWindowAppState extends State<SettingsWindowApp> {
+  Timer? _notifyTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    settingsController.addListener(_onSettingsChanged);
+  }
+
+  @override
+  void dispose() {
+    settingsController.removeListener(_onSettingsChanged);
+    _notifyTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    _notifyTimer?.cancel();
+    _notifyTimer = Timer(const Duration(milliseconds: 200), () async {
+      try {
+        final current = settingsController.value;
+        final payload = <String, dynamic>{
+          'petScale': current.petScale,
+          'desktopRoamSpeed': current.desktopRoamSpeed,
+          'mobileRoamSpeed': current.mobileRoamSpeed,
+          'androidOverlayScale': current.androidOverlayScale,
+          'showOverlayDebug': current.showOverlayDebug,
+          'launchAtStartup': current.launchAtStartup,
+        };
+        final controllers = await WindowController.getAll();
+        for (final controller in controllers) {
+          final args = WindowArgs.fromJsonString(controller.arguments);
+          if (args.type == WindowArgs.typeMain) {
+            await controller.invokeMethod('applySettings', payload);
+            break;
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Aemeath Settings',
+      themeMode: ThemeMode.light,
+      theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF5F3EF),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF5F3EF),
+          foregroundColor: Colors.black,
+        ),
+      ),
+      home: SettingsPage(controller: settingsController),
+    );
+  }
 }
 
 class AemeathPetApp extends StatefulWidget {
@@ -89,6 +259,9 @@ class _AemeathPetAppState extends State<AemeathPetApp> {
   }
 
   void _openSettings() {
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      return;
+    }
     final navigator = rootNavigatorKey.currentState;
     if (navigator == null) return;
     navigator.push(

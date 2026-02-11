@@ -1,23 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager_plus/window_manager_plus.dart';
 
 import 'app_settings.dart';
+import 'window_args.dart';
 
 class TrayController with TrayListener {
   TrayController({
     required this.controller,
     required this.onOpenSettings,
   });
-
-  static const double _sizeSmall = 0.8;
-  static const double _sizeMedium = 1.0;
-  static const double _sizeLarge = 1.4;
-  static const double _speedSlow = 80;
-  static const double _speedNormal = 120;
-  static const double _speedFast = 200;
 
   final SettingsController controller;
   final VoidCallback onOpenSettings;
@@ -39,49 +34,11 @@ class TrayController with TrayListener {
       final isShown = await _getWindowShown();
       final showDisabled = isShown == true;
       final hideDisabled = isShown == false;
-      final isSmall = _isClose(settings.petScale, _sizeSmall);
-      final isMedium = _isClose(settings.petScale, _sizeMedium);
-      final isLarge = _isClose(settings.petScale, _sizeLarge);
-      final isSlow = _isClose(settings.desktopRoamSpeed, _speedSlow);
-      final isNormal = _isClose(settings.desktopRoamSpeed, _speedNormal);
-      final isFast = _isClose(settings.desktopRoamSpeed, _speedFast);
       final menu = Menu(items: [
         MenuItem(key: 'show', label: 'Show', disabled: showDisabled),
         MenuItem(key: 'hide', label: 'Hide', disabled: hideDisabled),
         MenuItem.separator(),
         MenuItem(key: 'settings', label: 'Settings'),
-        MenuItem.separator(),
-      MenuItem.checkbox(
-        key: 'size_small',
-        label: 'Size: Small',
-        checked: isSmall,
-      ),
-      MenuItem.checkbox(
-        key: 'size_medium',
-        label: 'Size: Medium',
-        checked: isMedium,
-      ),
-      MenuItem.checkbox(
-        key: 'size_large',
-        label: 'Size: Large',
-        checked: isLarge,
-      ),
-        MenuItem.separator(),
-      MenuItem.checkbox(
-        key: 'speed_slow',
-        label: 'Speed: Slow',
-        checked: isSlow,
-      ),
-      MenuItem.checkbox(
-        key: 'speed_normal',
-        label: 'Speed: Normal',
-        checked: isNormal,
-      ),
-      MenuItem.checkbox(
-        key: 'speed_fast',
-        label: 'Speed: Fast',
-        checked: isFast,
-      ),
         MenuItem.separator(),
         MenuItem(
           key: 'autostart',
@@ -125,27 +82,8 @@ class TrayController with TrayListener {
           await refresh();
           break;
         case 'settings':
-          await _showWindow();
-          onOpenSettings();
+          await _openSettingsWindow();
           await refresh();
-          break;
-        case 'size_small':
-          await controller.setPetScale(_sizeSmall);
-          break;
-        case 'size_medium':
-          await controller.setPetScale(_sizeMedium);
-          break;
-        case 'size_large':
-          await controller.setPetScale(_sizeLarge);
-          break;
-        case 'speed_slow':
-          await controller.setDesktopRoamSpeed(_speedSlow);
-          break;
-        case 'speed_normal':
-          await controller.setDesktopRoamSpeed(_speedNormal);
-          break;
-        case 'speed_fast':
-          await controller.setDesktopRoamSpeed(_speedFast);
           break;
         case 'autostart':
           await controller.setLaunchAtStartup(!controller.value.launchAtStartup);
@@ -156,6 +94,35 @@ class TrayController with TrayListener {
       }
     } catch (_) {
       // Prevent tray click exceptions from terminating the app.
+    }
+  }
+
+  Future<void> _openSettingsWindow() async {
+    if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      onOpenSettings();
+      return;
+    }
+    try {
+      final controllers = await WindowController.getAll();
+      for (final controller in controllers) {
+        final args = WindowArgs.fromJsonString(controller.arguments);
+        if (args.type == WindowArgs.typeSettings) {
+          await controller.show();
+          await controller.invokeMethod('focus');
+          return;
+        }
+      }
+      final controller = await WindowController.create(
+        WindowConfiguration(
+          arguments: WindowArgs.settings.toJsonString(),
+          hiddenAtLaunch: true,
+        ),
+      );
+      await controller.show();
+      await controller.invokeMethod('focus');
+    } catch (_) {
+      // Fall back to in-app settings if window creation fails.
+      onOpenSettings();
     }
   }
 
