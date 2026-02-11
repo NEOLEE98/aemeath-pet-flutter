@@ -51,11 +51,13 @@ jobs:
         run: flutter pub get
       - name: Build Windows
         run: flutter build windows --release
+      - name: Package Windows build
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath windows-build.zip
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: build/windows/x64/runner/Release/**
+          path: windows-build.zip
 
   build-macos:
     runs-on: macos-latest
@@ -68,11 +70,13 @@ jobs:
         run: flutter pub get
       - name: Build macOS
         run: flutter build macos --release
+      - name: Package macOS app
+        run: tar -czf macos-app.tar.gz -C build/macos/Build/Products/Release Aemeath\ Pet.app
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: build/macos/Build/Products/Release/*.app
+          path: macos-app.tar.gz
 
   release:
     runs-on: ubuntu-latest
@@ -89,5 +93,5 @@ jobs:
           generate_release_notes: true
           files: |
             android-apk/*.apk
-            windows-build/**
-            macos-app/*.app
+            windows-build/windows-build.zip
+            macos-app/macos-app.tar.gz
