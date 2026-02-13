@@ -33,7 +33,22 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
       - name: Build Android APK
-        run: flutter build apk --release
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [[ "$tag" == *"+"* ]]; then
+              build_name="${tag%%+*}"
+              build_number="${tag##*+}"
+            else
+              build_name="$tag"
+              build_number="${GITHUB_RUN_NUMBER}"
+            fi
+            echo "Building Android with versionName=${build_name}, versionCode=${build_number}"
+            flutter build apk --release --build-name "${build_name}" --build-number "${build_number}"
+          else
+            flutter build apk --release
+          fi
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
