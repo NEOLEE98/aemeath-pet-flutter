@@ -2,17 +2,18 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:multi_window_manager/multi_window_manager.dart'
+    hide screenRetriever;
 import 'package:screen_retriever/screen_retriever.dart';
-import 'package:window_manager_plus/window_manager_plus.dart';
 import 'l10n/app_localizations.dart';
 
 import 'l10n/locale_utils.dart';
 import 'models/app_settings.dart';
 import 'platform/android_overlay_launcher.dart';
 import 'platform/desktop_startup.dart';
+import 'platform/desktop_window_service.dart';
 import 'controllers/tray_controller.dart';
 import 'services/desktop_update_notice.dart';
 import 'services/update_checker.dart';
@@ -29,9 +30,11 @@ Future<void> main(List<String> args) async {
   await settingsController.load();
   await settingsController.setupLaunchAtStartup();
 
-  final windowArgs = _parseWindowArgs(args);
+  final windowId = _parseWindowId(args);
+  final windowArgs = _parseWindowArgs(args, windowId);
   if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     await initializeDesktopWindow(
+      windowId: windowId,
       windowArgs: windowArgs,
       settingsController: settingsController,
     );
@@ -54,9 +57,12 @@ Future<void> overlayMain() async {
   runApp(const AemeathOverlayApp());
 }
 
-WindowArgs _parseWindowArgs(List<String> args) {
-  if (args.length >= 3 && args.first == 'multi_window') {
-    return WindowArgs.fromJsonString(args[2]);
+int _parseWindowId(List<String> args) =>
+    args.isEmpty ? 0 : int.tryParse(args.first) ?? 0;
+
+WindowArgs _parseWindowArgs(List<String> args, int windowId) {
+  if (windowId > 0 && args.length > 1) {
+    return WindowArgs.fromJsonString(args[1]);
   }
   return WindowArgs.main;
 }
@@ -111,25 +117,7 @@ class _AemeathPetAppState extends State<AemeathPetApp> {
   Future<void> _showDesktopUpdatePrompt(UpdateCheckResult result) async {
     try {
       await DesktopUpdateNoticeStore.save(result);
-      WindowController? settingsController;
-      final controllers = await WindowController.getAll();
-      for (final controller in controllers) {
-        final args = WindowArgs.fromJsonString(controller.arguments);
-        if (args.type == WindowArgs.typeSettings) {
-          settingsController = controller;
-          break;
-        }
-      }
-
-      settingsController ??= await WindowController.create(
-        WindowConfiguration(
-          arguments: WindowArgs.settings.toJsonString(),
-          hiddenAtLaunch: true,
-        ),
-      );
-
-      await settingsController.show();
-      await settingsController.invokeMethod('focus');
+      await openOrFocusSettingsWindow();
     } catch (_) {}
   }
 
@@ -333,9 +321,9 @@ class _PetStageState extends State<PetStage> {
     if ((Platform.isWindows || Platform.isMacOS) &&
         previous.petScale != current.petScale) {
       final size = Size(current.desktopWindowSize, current.desktopWindowSize);
-      await WindowManagerPlus.current.setSize(size);
-      await WindowManagerPlus.current.setMinimumSize(size);
-      await WindowManagerPlus.current.setMaximumSize(size);
+      await MultiWindowManager.current.setSize(size);
+      await MultiWindowManager.current.setMinimumSize(size);
+      await MultiWindowManager.current.setMaximumSize(size);
     }
 
     // Android overlay size is applied from the overlay process on Apply.
@@ -389,7 +377,7 @@ class _PetStageState extends State<PetStage> {
     isDragging = true;
     _setGif('assets/drag.gif');
     if (Platform.isWindows || Platform.isMacOS) {
-      WindowManagerPlus.current.startDragging();
+      MultiWindowManager.current.startDragging();
     }
   }
 
@@ -426,7 +414,7 @@ class _PetStageState extends State<PetStage> {
       origin.dx + Random().nextDouble() * (size.width - windowSize),
       origin.dy + Random().nextDouble() * (size.height - windowSize),
     );
-    final start = await WindowManagerPlus.current.getPosition();
+    final start = await MultiWindowManager.current.getPosition();
 
     setState(() {
       isMoving = true;
@@ -447,7 +435,7 @@ class _PetStageState extends State<PetStage> {
   }) async {
     _moveTimer?.cancel();
     _safeComplete(_moveCompleter);
-    final start = await WindowManagerPlus.current.getPosition();
+    final start = await MultiWindowManager.current.getPosition();
     final distance = (target - start).distance;
     final durationMs =
         max(_minMoveDurationMs, (distance / speedPxPerSec * 1000).round());
@@ -468,7 +456,7 @@ class _PetStageState extends State<PetStage> {
       final t = tick / steps;
       if (t >= 1) {
         timer.cancel();
-        await WindowManagerPlus.current.setPosition(target);
+        await MultiWindowManager.current.setPosition(target);
         _safeComplete(completer);
         return;
       }
@@ -477,7 +465,7 @@ class _PetStageState extends State<PetStage> {
         start.dx + (target.dx - start.dx) * eased,
         start.dy + (target.dy - start.dy) * eased,
       );
-      await WindowManagerPlus.current.setPosition(lerp);
+      await MultiWindowManager.current.setPosition(lerp);
     });
 
     return completer.future;

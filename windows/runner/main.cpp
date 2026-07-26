@@ -2,7 +2,11 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include <iostream>
+#include <memory>
+
 #include "flutter_window.h"
+#include "multi_window_manager/multi_window_manager_plugin.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -30,7 +34,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!window.Create(L"aemeath_pet", origin, size)) {
     return EXIT_FAILURE;
   }
-  window.SetQuitOnClose(true);
+  window.SetQuitOnClose(false);
+
+  MultiWindowManagerPluginSetWindowCreatedCallback(
+      [](std::vector<std::string> command_line_arguments) {
+        flutter::DartProject project(L"data");
+        project.set_dart_entrypoint_arguments(
+            std::move(command_line_arguments));
+
+        auto window = std::make_shared<FlutterWindow>(project);
+        Win32Window::Point origin(10, 10);
+        Win32Window::Size size(720, 720);
+        if (!window->Create(L"Aemeath Pet", origin, size)) {
+          std::cerr << "Failed to create a new window" << std::endl;
+        }
+        window->SetQuitOnClose(false);
+        return std::move(window);
+      });
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
