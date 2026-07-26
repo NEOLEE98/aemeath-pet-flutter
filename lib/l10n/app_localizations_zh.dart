@@ -48,6 +48,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get showOverlayDebug => '显示悬浮窗调试信息';
 
   @override
+  String get sectionInteraction => '交互';
+
+  @override
+  String get clickThrough => '点击/触摸穿透';
+
+  @override
+  String get clickThroughDescription => '让指针输入穿过宠物并传递到后方应用';
+
+  @override
   String get launchAtStartup => '开机启动';
 
   @override

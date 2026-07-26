@@ -85,7 +85,9 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
       height: widget.controller.value.androidOverlaySize.toInt(),
       width: widget.controller.value.androidOverlaySize.toInt(),
       enableDrag: true,
-      flag: OverlayFlag.defaultFlag,
+      flag: widget.controller.value.clickThrough
+          ? OverlayFlag.clickThrough
+          : OverlayFlag.defaultFlag,
       overlayTitle: l10n.overlayNotificationTitle,
       overlayContent: l10n.overlayNotificationContent,
       startPosition: OverlayPosition(mq.padding.left, mq.padding.top),
@@ -144,6 +146,7 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
       'mobileRoamSpeed': current.mobileRoamSpeed,
       'androidOverlayScale': current.androidOverlayScale,
       'showOverlayDebug': current.showOverlayDebug,
+      'clickThrough': current.clickThrough,
       'screenWidth': fullWidth,
       'screenHeight': fullHeight,
       'padLeft': padding.left,
@@ -157,7 +160,8 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final status = switch (overlayStatus) {
-      _OverlayStatus.permissionNotGranted => l10n.statusOverlayPermissionNotGranted,
+      _OverlayStatus.permissionNotGranted =>
+        l10n.statusOverlayPermissionNotGranted,
       _OverlayStatus.running => l10n.statusOverlayRunning,
       _OverlayStatus.stopped => l10n.statusOverlayStopped,
     };

@@ -78,6 +78,7 @@ class _SettingsWindowAppState extends State<SettingsWindowApp> {
           'mobileRoamSpeed': current.mobileRoamSpeed,
           'androidOverlayScale': current.androidOverlayScale,
           'showOverlayDebug': current.showOverlayDebug,
+          'clickThrough': current.clickThrough,
           'launchAtStartup': current.launchAtStartup,
           'languageCode': current.languageCode,
         };

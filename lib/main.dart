@@ -267,6 +267,7 @@ class _PetStageState extends State<PetStage> {
       final mobileSpeed = (message['mobileRoamSpeed'] as num?)?.toDouble();
       final overlayScale = (message['androidOverlayScale'] as num?)?.toDouble();
       final showDebug = _parseBool(message['showOverlayDebug']);
+      final clickThrough = _parseBool(message['clickThrough']);
       final screenWidth = (message['screenWidth'] as num?)?.toDouble();
       final screenHeight = (message['screenHeight'] as num?)?.toDouble();
       final padLeft = (message['padLeft'] as num?)?.toDouble();
@@ -282,11 +283,17 @@ class _PetStageState extends State<PetStage> {
           true,
         );
       }
+      if (clickThrough != null && clickThrough != current.clickThrough) {
+        await FlutterOverlayWindow.updateFlag(
+          clickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
+        );
+      }
 
       final next = current.copyWith(
         mobileRoamSpeed: mobileSpeed ?? current.mobileRoamSpeed,
         androidOverlayScale: overlayScale ?? current.androidOverlayScale,
         showOverlayDebug: showDebug ?? current.showOverlayDebug,
+        clickThrough: clickThrough ?? current.clickThrough,
       );
       if (screenWidth != null && screenHeight != null) {
         overlayScreenSize = Size(screenWidth, screenHeight);

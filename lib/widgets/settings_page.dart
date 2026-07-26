@@ -167,12 +167,32 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           const SizedBox(height: 12),
                           SwitchListTile.adaptive(
+                            value: settings.clickThrough,
+                            title: Text(l10n.clickThrough),
+                            subtitle: Text(l10n.clickThroughDescription),
+                            contentPadding: EdgeInsets.zero,
+                            onChanged: widget.controller.setClickThrough,
+                          ),
+                          SwitchListTile.adaptive(
                             value: settings.showOverlayDebug,
                             title: Text(l10n.showOverlayDebug),
                             contentPadding: EdgeInsets.zero,
                             onChanged: widget.controller.setShowOverlayDebug,
                           ),
                         ],
+                      ),
+                    ),
+                  if (Platform.isWindows ||
+                      Platform.isMacOS ||
+                      Platform.isLinux)
+                    _Section(
+                      title: l10n.sectionInteraction,
+                      child: SwitchListTile.adaptive(
+                        value: settings.clickThrough,
+                        title: Text(l10n.clickThrough),
+                        subtitle: Text(l10n.clickThroughDescription),
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: widget.controller.setClickThrough,
                       ),
                     ),
                   if (Platform.isWindows ||
