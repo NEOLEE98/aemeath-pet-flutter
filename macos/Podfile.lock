@@ -48,12 +48,12 @@ SPEC CHECKSUMS:
   desktop_multi_window: 93667594ccc4b88d91a97972fd3b1b89667fa80a
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
-  screen_retriever_macos: 452e51764a9e1cdb74b3c541238795849f21557f
+  screen_retriever_macos: c5508cc3c66ff0d4db650480cf0ab691e220d933
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
-  tray_manager: a104b5c81b578d83f3c3d0f40a997c8b10810166
+  tray_manager: 19c369010e59c073f13b82354d78a35f7972d609
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
   window_manager_plus: e29fcf45a372b5312ad381ce5596a007994537ac
 
-PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
+PODFILE CHECKSUM: 72a145d68bd940d5270f2b51d39e5183b43f0d31
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
