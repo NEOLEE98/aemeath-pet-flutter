@@ -1,7 +1,8 @@
-import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:window_manager_plus/window_manager_plus.dart';
+import 'package:multi_window_manager/multi_window_manager.dart';
 
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_utils.dart';
@@ -9,57 +10,41 @@ import '../models/app_settings.dart';
 import '../models/window_args.dart';
 
 Future<void> initializeDesktopWindow({
+  required int windowId,
   required WindowArgs windowArgs,
   required SettingsController settingsController,
 }) async {
-  final ready = await _ensureWindowManagerReady();
+  final ready = await _ensureWindowManagerReady(windowId);
   if (ready) {
+    MultiWindowManager.current.addListener(
+      _DesktopWindowListener(
+        windowArgs: windowArgs,
+        settingsController: settingsController,
+      ),
+    );
     if (windowArgs.type == WindowArgs.typeSettings) {
       await _configureSettingsWindow(settingsController);
     } else {
       await _configurePetWindow(settingsController);
     }
   }
-  await _tryRegisterWindowHandlers(
-    windowArgs: windowArgs,
-    settingsController: settingsController,
-  );
 }
 
-Future<bool> _ensureWindowManagerReady() async {
+Future<bool> _ensureWindowManagerReady(int windowId) async {
   const retries = 5;
   for (var attempt = 0; attempt < retries; attempt += 1) {
     try {
-      await WindowManagerPlus.ensureInitialized(0);
+      if (windowId == 0) {
+        await MultiWindowManager.ensureInitialized(windowId);
+      } else {
+        await MultiWindowManager.ensureInitializedSecondary(windowId);
+      }
       return true;
     } on MissingPluginException {
       await Future<void>.delayed(const Duration(milliseconds: 120));
     }
   }
   return false;
-}
-
-Future<void> _tryRegisterWindowHandlers({
-  required WindowArgs windowArgs,
-  required SettingsController settingsController,
-}) async {
-  const retries = 5;
-  for (var attempt = 0; attempt < retries; attempt += 1) {
-    try {
-      final windowController = await WindowController.fromCurrentEngine();
-      if (windowArgs.type == WindowArgs.typeSettings) {
-        await _registerSettingsWindowHandlers(windowController);
-      } else {
-        await _registerMainWindowHandlers(
-          windowController: windowController,
-          settingsController: settingsController,
-        );
-      }
-      return;
-    } on MissingPluginException {
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-    }
-  }
 }
 
 Future<void> _configurePetWindow(SettingsController settingsController) async {
@@ -72,20 +57,20 @@ Future<void> _configurePetWindow(SettingsController settingsController) async {
     skipTaskbar: true,
   );
 
-  WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
-    await WindowManagerPlus.current.setAsFrameless();
-    await WindowManagerPlus.current.setResizable(false);
-    await WindowManagerPlus.current
+  MultiWindowManager.current.waitUntilReadyToShow(windowOptions, () async {
+    await MultiWindowManager.current.setAsFrameless();
+    await MultiWindowManager.current.setResizable(false);
+    await MultiWindowManager.current
         .setMinimumSize(Size(windowSize, windowSize));
-    await WindowManagerPlus.current
+    await MultiWindowManager.current
         .setMaximumSize(Size(windowSize, windowSize));
-    await WindowManagerPlus.current.setHasShadow(false);
-    await WindowManagerPlus.current.setOpacity(1);
-    await WindowManagerPlus.current.setVisibleOnAllWorkspaces(true);
-    await WindowManagerPlus.current.setAlwaysOnTop(true);
-    await WindowManagerPlus.current.setBackgroundColor(Colors.transparent);
-    await WindowManagerPlus.current.show();
-    await WindowManagerPlus.current.focus();
+    await MultiWindowManager.current.setHasShadow(false);
+    await MultiWindowManager.current.setOpacity(1);
+    await MultiWindowManager.current.setVisibleOnAllWorkspaces(true);
+    await MultiWindowManager.current.setAlwaysOnTop(true);
+    await MultiWindowManager.current.setBackgroundColor(Colors.transparent);
+    await MultiWindowManager.current.show();
+    await MultiWindowManager.current.focus();
   });
 }
 
@@ -108,32 +93,51 @@ Future<void> _configureSettingsWindow(
     skipTaskbar: false,
   );
 
-  WindowManagerPlus.current.waitUntilReadyToShow(windowOptions, () async {
-    await WindowManagerPlus.current.setResizable(true);
-    await WindowManagerPlus.current.setMinimumSize(minSize);
-    await WindowManagerPlus.current.setMaximumSize(maxSize);
-    await WindowManagerPlus.current.setHasShadow(true);
-    await WindowManagerPlus.current.setAlwaysOnTop(false);
-    await WindowManagerPlus.current.setVisibleOnAllWorkspaces(false);
-    await WindowManagerPlus.current.setBackgroundColor(
+  MultiWindowManager.current.waitUntilReadyToShow(windowOptions, () async {
+    await MultiWindowManager.current.setResizable(true);
+    await MultiWindowManager.current.setMinimumSize(minSize);
+    await MultiWindowManager.current.setMaximumSize(maxSize);
+    await MultiWindowManager.current.setHasShadow(true);
+    await MultiWindowManager.current.setAlwaysOnTop(false);
+    await MultiWindowManager.current.setVisibleOnAllWorkspaces(false);
+    await MultiWindowManager.current.setBackgroundColor(
       const Color(0xFFF5F3EF),
     );
-    await WindowManagerPlus.current.show();
-    await WindowManagerPlus.current.focus();
+    await MultiWindowManager.current.show();
+    await MultiWindowManager.current.focus();
   });
 }
 
-Future<void> _registerMainWindowHandlers({
-  required WindowController windowController,
-  required SettingsController settingsController,
-}) async {
-  await windowController.setWindowMethodHandler((call) async {
-    switch (call.method) {
+class _DesktopWindowListener with WindowListener {
+  _DesktopWindowListener({
+    required this.windowArgs,
+    required this.settingsController,
+  });
+
+  final WindowArgs windowArgs;
+  final SettingsController settingsController;
+
+  @override
+  void onWindowClose([int? windowId]) {
+    if (windowArgs.type == WindowArgs.typeMain) {
+      exit(0);
+    }
+  }
+
+  @override
+  Future<dynamic> onEventFromWindow(
+    String eventName,
+    int fromWindowId,
+    dynamic arguments,
+  ) async {
+    switch (eventName) {
+      case 'getWindowType':
+        return windowArgs.type;
       case 'reloadSettings':
         await settingsController.load();
         return true;
       case 'applySettings':
-        final args = call.arguments;
+        final args = arguments;
         if (args is Map) {
           settingsController.value = AppSettings(
             petScale: (args['petScale'] as num?)?.toDouble() ??
@@ -156,24 +160,10 @@ Future<void> _registerMainWindowHandlers({
         }
         return false;
       case 'focus':
-        await WindowManagerPlus.current.show();
-        await WindowManagerPlus.current.focus();
+        await MultiWindowManager.current.show();
+        await MultiWindowManager.current.focus();
         return true;
     }
     return null;
-  });
-}
-
-Future<void> _registerSettingsWindowHandlers(
-  WindowController windowController,
-) async {
-  await windowController.setWindowMethodHandler((call) async {
-    switch (call.method) {
-      case 'focus':
-        await WindowManagerPlus.current.show();
-        await WindowManagerPlus.current.focus();
-        return true;
-    }
-    return null;
-  });
+  }
 }

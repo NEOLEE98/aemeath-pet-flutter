@@ -1,14 +1,13 @@
 import 'dart:io';
 
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/widgets.dart';
+import 'package:multi_window_manager/multi_window_manager.dart';
 import 'package:tray_manager/tray_manager.dart';
-import 'package:window_manager_plus/window_manager_plus.dart';
 
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_utils.dart';
 import '../models/app_settings.dart';
-import '../models/window_args.dart';
+import '../platform/desktop_window_service.dart';
 
 class TrayController with TrayListener {
   TrayController({
@@ -63,9 +62,8 @@ class TrayController with TrayListener {
   }
 
   Future<void> _setIcon() async {
-    final iconPath = Platform.isWindows
-        ? 'assets/aemeath.ico'
-        : 'assets/tray_icon.png';
+    final iconPath =
+        Platform.isWindows ? 'assets/aemeath.ico' : 'assets/tray_icon.png';
     await trayManager.setIcon(iconPath);
   }
 
@@ -93,10 +91,11 @@ class TrayController with TrayListener {
           await refresh();
           break;
         case 'autostart':
-          await controller.setLaunchAtStartup(!controller.value.launchAtStartup);
+          await controller
+              .setLaunchAtStartup(!controller.value.launchAtStartup);
           break;
         case 'quit':
-          await WindowManagerPlus.current.close();
+          await MultiWindowManager.current.close();
           break;
       }
     } catch (_) {
@@ -110,23 +109,7 @@ class TrayController with TrayListener {
       return;
     }
     try {
-      final controllers = await WindowController.getAll();
-      for (final controller in controllers) {
-        final args = WindowArgs.fromJsonString(controller.arguments);
-        if (args.type == WindowArgs.typeSettings) {
-          await controller.show();
-          await controller.invokeMethod('focus');
-          return;
-        }
-      }
-      final controller = await WindowController.create(
-        WindowConfiguration(
-          arguments: WindowArgs.settings.toJsonString(),
-          hiddenAtLaunch: true,
-        ),
-      );
-      await controller.show();
-      await controller.invokeMethod('focus');
+      await openOrFocusSettingsWindow();
     } catch (_) {
       // Fall back to in-app settings if window creation fails.
       onOpenSettings();
@@ -135,14 +118,14 @@ class TrayController with TrayListener {
 
   Future<void> _showWindow() async {
     if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) return;
-    await WindowManagerPlus.current.show();
-    await WindowManagerPlus.current.focus();
+    await MultiWindowManager.current.show();
+    await MultiWindowManager.current.focus();
     _windowShownOverride = true;
   }
 
   Future<void> _hideWindow() async {
     if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) return;
-    await WindowManagerPlus.current.hide();
+    await MultiWindowManager.current.hide();
     _windowShownOverride = false;
   }
 
@@ -154,8 +137,8 @@ class TrayController with TrayListener {
       return _windowShownOverride;
     }
     try {
-      final visible = await WindowManagerPlus.current.isVisible();
-      final minimized = await WindowManagerPlus.current.isMinimized();
+      final visible = await MultiWindowManager.current.isVisible();
+      final minimized = await MultiWindowManager.current.isMinimized();
       return visible && !minimized;
     } catch (_) {
       return null;

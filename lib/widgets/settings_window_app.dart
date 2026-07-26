@@ -1,12 +1,11 @@
 import 'dart:async';
 
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_utils.dart';
 import '../models/app_settings.dart';
-import '../models/window_args.dart';
+import '../platform/desktop_window_service.dart';
 import '../services/desktop_update_notice.dart';
 import '../services/update_prompt.dart';
 import 'settings_page.dart';
@@ -82,14 +81,7 @@ class _SettingsWindowAppState extends State<SettingsWindowApp> {
           'launchAtStartup': current.launchAtStartup,
           'languageCode': current.languageCode,
         };
-        final controllers = await WindowController.getAll();
-        for (final controller in controllers) {
-          final args = WindowArgs.fromJsonString(controller.arguments);
-          if (args.type == WindowArgs.typeMain) {
-            await controller.invokeMethod('applySettings', payload);
-            break;
-          }
-        }
+        await invokeMainWindow('applySettings', payload);
       } catch (_) {}
     });
   }
