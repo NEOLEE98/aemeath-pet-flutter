@@ -2,18 +2,8 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - '**'
     tags:
       - 'v*'
-    paths-ignore:
-      - '.github/**'
-      - 'README.md'
-  pull_request:
-    paths-ignore:
-      - '.github/**'
-      - 'README.md'
-  workflow_dispatch:
 
 permissions:
   contents: write
