@@ -69,6 +69,8 @@ Future<void> _configurePetWindow(SettingsController settingsController) async {
     await MultiWindowManager.current.setVisibleOnAllWorkspaces(true);
     await MultiWindowManager.current.setAlwaysOnTop(true);
     await MultiWindowManager.current.setBackgroundColor(Colors.transparent);
+    await MultiWindowManager.current
+        .setIgnoreMouseEvents(settingsController.value.clickThrough);
     await MultiWindowManager.current.show();
     await MultiWindowManager.current.focus();
   });
@@ -151,11 +153,15 @@ class _DesktopWindowListener with WindowListener {
                     settingsController.value.androidOverlayScale,
             showOverlayDebug: args['showOverlayDebug'] as bool? ??
                 settingsController.value.showOverlayDebug,
+            clickThrough: args['clickThrough'] as bool? ??
+                settingsController.value.clickThrough,
             launchAtStartup: args['launchAtStartup'] as bool? ??
                 settingsController.value.launchAtStartup,
             languageCode: args['languageCode'] as String? ??
                 settingsController.value.languageCode,
           );
+          await MultiWindowManager.current
+              .setIgnoreMouseEvents(settingsController.value.clickThrough);
           return true;
         }
         return false;

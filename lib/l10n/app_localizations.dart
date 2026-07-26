@@ -176,6 +176,24 @@ abstract class AppLocalizations {
   /// **'Show overlay debug'**
   String get showOverlayDebug;
 
+  /// No description provided for @sectionInteraction.
+  ///
+  /// In en, this message translates to:
+  /// **'Interaction'**
+  String get sectionInteraction;
+
+  /// No description provided for @clickThrough.
+  ///
+  /// In en, this message translates to:
+  /// **'Click/tap through'**
+  String get clickThrough;
+
+  /// No description provided for @clickThroughDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Pass pointer input through the pet to apps behind it'**
+  String get clickThroughDescription;
+
   /// No description provided for @launchAtStartup.
   ///
   /// In en, this message translates to:

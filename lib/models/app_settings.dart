@@ -16,6 +16,7 @@ class AppSettings {
     required this.mobileRoamSpeed,
     required this.androidOverlayScale,
     required this.showOverlayDebug,
+    required this.clickThrough,
     required this.launchAtStartup,
     required this.languageCode,
   });
@@ -25,6 +26,7 @@ class AppSettings {
   final double mobileRoamSpeed;
   final double androidOverlayScale;
   final bool showOverlayDebug;
+  final bool clickThrough;
   final bool launchAtStartup;
   final String languageCode;
 
@@ -38,6 +40,7 @@ class AppSettings {
     double? mobileRoamSpeed,
     double? androidOverlayScale,
     bool? showOverlayDebug,
+    bool? clickThrough,
     bool? launchAtStartup,
     String? languageCode,
   }) {
@@ -47,6 +50,7 @@ class AppSettings {
       mobileRoamSpeed: mobileRoamSpeed ?? this.mobileRoamSpeed,
       androidOverlayScale: androidOverlayScale ?? this.androidOverlayScale,
       showOverlayDebug: showOverlayDebug ?? this.showOverlayDebug,
+      clickThrough: clickThrough ?? this.clickThrough,
       launchAtStartup: launchAtStartup ?? this.launchAtStartup,
       languageCode: languageCode ?? this.languageCode,
     );
@@ -58,6 +62,7 @@ class AppSettings {
     mobileRoamSpeed: 180.0,
     androidOverlayScale: 1.0,
     showOverlayDebug: false,
+    clickThrough: false,
     launchAtStartup: false,
     languageCode: '',
   );
@@ -72,6 +77,7 @@ class SettingsController extends ValueNotifier<AppSettings> {
   static const _keyOverlayScale = 'androidOverlayScale';
   static const _keyOverlaySizeLegacy = 'androidOverlaySize';
   static const _keyShowOverlayDebug = 'showOverlayDebug';
+  static const _keyClickThrough = 'clickThrough';
   static const _keyLaunchAtStartup = 'launchAtStartup';
   static const _keyLanguageCode = 'languageCode';
 
@@ -86,6 +92,8 @@ class SettingsController extends ValueNotifier<AppSettings> {
       androidOverlayScale: _loadOverlayScale(prefs),
       showOverlayDebug: prefs.getBool(_keyShowOverlayDebug) ??
           AppSettings.defaults.showOverlayDebug,
+      clickThrough:
+          prefs.getBool(_keyClickThrough) ?? AppSettings.defaults.clickThrough,
       launchAtStartup: prefs.getBool(_keyLaunchAtStartup) ??
           AppSettings.defaults.launchAtStartup,
       languageCode: _loadLanguageCode(prefs),
@@ -136,26 +144,28 @@ class SettingsController extends ValueNotifier<AppSettings> {
     value = value.copyWith(mobileRoamSpeed: speed);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyMobileSpeed, speed);
-    await FlutterOverlayWindow.shareData({
-      'type': 'apply',
-      'mobileRoamSpeed': speed
-    });
+    await FlutterOverlayWindow.shareData(
+        {'type': 'apply', 'mobileRoamSpeed': speed});
   }
 
   Future<void> setAndroidOverlayScale(double scale) async {
     value = value.copyWith(androidOverlayScale: scale);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyOverlayScale, scale);
-    await FlutterOverlayWindow.shareData({
-      'type': 'apply',
-      'androidOverlayScale': scale
-    });
+    await FlutterOverlayWindow.shareData(
+        {'type': 'apply', 'androidOverlayScale': scale});
   }
 
   Future<void> setShowOverlayDebug(bool enabled) async {
     value = value.copyWith(showOverlayDebug: enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyShowOverlayDebug, enabled);
+  }
+
+  Future<void> setClickThrough(bool enabled) async {
+    value = value.copyWith(clickThrough: enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyClickThrough, enabled);
   }
 
   Future<void> setLaunchAtStartup(bool enabled) async {

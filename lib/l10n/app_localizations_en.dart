@@ -48,6 +48,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showOverlayDebug => 'Show overlay debug';
 
   @override
+  String get sectionInteraction => 'Interaction';
+
+  @override
+  String get clickThrough => 'Click/tap through';
+
+  @override
+  String get clickThroughDescription =>
+      'Pass pointer input through the pet to apps behind it';
+
+  @override
   String get launchAtStartup => 'Launch at startup';
 
   @override
