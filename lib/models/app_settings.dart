@@ -34,6 +34,48 @@ class AppSettings {
   double get desktopWindowSize => petSize + 40.0;
   double get androidOverlaySize => baseAndroidOverlaySize * androidOverlayScale;
 
+  factory AppSettings.fromMap(
+    Map<dynamic, dynamic> map, {
+    AppSettings fallback = defaults,
+  }) {
+    final languageCode = map['languageCode'];
+    return AppSettings(
+      petScale: _positiveDoubleOr(map['petScale'], fallback.petScale),
+      desktopRoamSpeed:
+          _positiveDoubleOr(map['desktopRoamSpeed'], fallback.desktopRoamSpeed),
+      mobileRoamSpeed:
+          _positiveDoubleOr(map['mobileRoamSpeed'], fallback.mobileRoamSpeed),
+      androidOverlayScale: _positiveDoubleOr(
+          map['androidOverlayScale'], fallback.androidOverlayScale),
+      showOverlayDebug:
+          _boolOr(map['showOverlayDebug'], fallback.showOverlayDebug),
+      clickThrough: _boolOr(map['clickThrough'], fallback.clickThrough),
+      launchAtStartup:
+          _boolOr(map['launchAtStartup'], fallback.launchAtStartup),
+      languageCode:
+          languageCode == '' || languageCode == 'en' || languageCode == 'zh'
+              ? languageCode as String
+              : fallback.languageCode,
+    );
+  }
+
+  static double _positiveDoubleOr(dynamic value, double fallback) =>
+      value is num && value.isFinite && value > 0 ? value.toDouble() : fallback;
+
+  static bool _boolOr(dynamic value, bool fallback) =>
+      value is bool ? value : fallback;
+
+  Map<String, dynamic> toMap() => {
+        'petScale': petScale,
+        'desktopRoamSpeed': desktopRoamSpeed,
+        'mobileRoamSpeed': mobileRoamSpeed,
+        'androidOverlayScale': androidOverlayScale,
+        'showOverlayDebug': showOverlayDebug,
+        'clickThrough': clickThrough,
+        'launchAtStartup': launchAtStartup,
+        'languageCode': languageCode,
+      };
+
   AppSettings copyWith({
     double? petScale,
     double? desktopRoamSpeed,
@@ -66,6 +108,31 @@ class AppSettings {
     launchAtStartup: false,
     languageCode: '',
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppSettings &&
+          petScale == other.petScale &&
+          desktopRoamSpeed == other.desktopRoamSpeed &&
+          mobileRoamSpeed == other.mobileRoamSpeed &&
+          androidOverlayScale == other.androidOverlayScale &&
+          showOverlayDebug == other.showOverlayDebug &&
+          clickThrough == other.clickThrough &&
+          launchAtStartup == other.launchAtStartup &&
+          languageCode == other.languageCode;
+
+  @override
+  int get hashCode => Object.hash(
+        petScale,
+        desktopRoamSpeed,
+        mobileRoamSpeed,
+        androidOverlayScale,
+        showOverlayDebug,
+        clickThrough,
+        launchAtStartup,
+        languageCode,
+      );
 }
 
 class SettingsController extends ValueNotifier<AppSettings> {

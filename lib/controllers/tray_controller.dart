@@ -18,6 +18,7 @@ class TrayController with TrayListener {
   final SettingsController controller;
   final VoidCallback onOpenSettings;
   bool? _windowShownOverride;
+  bool _disposed = false;
 
   Future<void> init() async {
     trayManager.addListener(this);
@@ -29,7 +30,13 @@ class TrayController with TrayListener {
     Future.delayed(const Duration(milliseconds: 300), refresh);
   }
 
+  void dispose() {
+    _disposed = true;
+    trayManager.removeListener(this);
+  }
+
   Future<void> refresh() async {
+    if (_disposed) return;
     try {
       final locale = effectiveAppLocale(
         languageCode: controller.value.languageCode,
@@ -55,6 +62,7 @@ class TrayController with TrayListener {
         MenuItem.separator(),
         MenuItem(key: 'quit', label: strings.trayQuit),
       ]);
+      if (_disposed) return;
       await trayManager.setContextMenu(menu);
     } catch (_) {
       // Avoid crashing if the menu is refreshed while closing.

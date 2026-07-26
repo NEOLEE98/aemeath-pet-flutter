@@ -75,25 +75,34 @@ class AemeathPetApp extends StatefulWidget {
 }
 
 class _AemeathPetAppState extends State<AemeathPetApp> {
-  TrayController? trayController;
+  TrayController? _trayController;
   final GitHubUpdateChecker _updateChecker = GitHubUpdateChecker();
 
   @override
   void initState() {
     super.initState();
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      trayController = TrayController(
+      _trayController = TrayController(
         controller: settingsController,
         onOpenSettings: _openSettings,
       );
-      trayController!.init();
-      settingsController.addListener(() {
-        trayController?.refresh();
-      });
+      _trayController!.init();
+      settingsController.addListener(_refreshTray);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdatesOnLaunch();
     });
+  }
+
+  void _refreshTray() {
+    _trayController?.refresh();
+  }
+
+  @override
+  void dispose() {
+    settingsController.removeListener(_refreshTray);
+    _trayController?.dispose();
+    super.dispose();
   }
 
   Future<void> _checkForUpdatesOnLaunch() async {
@@ -208,6 +217,7 @@ class PetStage extends StatefulWidget {
 class _PetStageState extends State<PetStage> {
   AppSettings get settings => widget.controller.value;
   static const int _minMoveDurationMs = 60;
+  final Random _random = Random();
 
   final List<String> idleGifs = const [
     'assets/idle1.gif',
@@ -219,8 +229,7 @@ class _PetStageState extends State<PetStage> {
   String currentGif = 'assets/idle1.gif';
   Timer? idleTimer;
   Timer? roamTimer;
-  Timer? _moveTimer;
-  Completer<void>? _moveCompleter;
+  int _moveGeneration = 0;
   StreamSubscription<dynamic>? overlaySubscription;
   Timer? overlayPosTimer;
   Size? overlayScreenSize;
@@ -250,6 +259,7 @@ class _PetStageState extends State<PetStage> {
   void dispose() {
     idleTimer?.cancel();
     roamTimer?.cancel();
+    _moveGeneration += 1;
     overlaySubscription?.cancel();
     overlayPosTimer?.cancel();
     widget.controller.removeListener(_onSettingsChanged);
@@ -283,11 +293,13 @@ class _PetStageState extends State<PetStage> {
           true,
         );
       }
+      if (!mounted) return;
       if (clickThrough != null && clickThrough != current.clickThrough) {
         await FlutterOverlayWindow.updateFlag(
           clickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
         );
       }
+      if (!mounted) return;
 
       final next = current.copyWith(
         mobileRoamSpeed: mobileSpeed ?? current.mobileRoamSpeed,
@@ -335,6 +347,7 @@ class _PetStageState extends State<PetStage> {
 
     // Android overlay size is applied from the overlay process on Apply.
 
+    if (!mounted) return;
     setState(() {});
     lastSettings = current;
   }
@@ -344,6 +357,7 @@ class _PetStageState extends State<PetStage> {
       final display = await screenRetriever.getPrimaryDisplay();
       final size = display.visibleSize ?? display.size;
       final origin = display.visiblePosition ?? const Offset(0, 0);
+      if (!mounted) return;
       setState(() {
         screenOrigin = Offset(origin.dx.toDouble(), origin.dy.toDouble());
         screenSize = Size(size.width.toDouble(), size.height.toDouble());
@@ -365,7 +379,8 @@ class _PetStageState extends State<PetStage> {
     idleTimer?.cancel();
     idleTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (isDragging || isMoving) return;
-      final next = idleGifs[Random().nextInt(idleGifs.length)];
+      if (!mounted) return;
+      final next = idleGifs[_random.nextInt(idleGifs.length)];
       setState(() {
         currentGif = next;
       });
@@ -417,19 +432,22 @@ class _PetStageState extends State<PetStage> {
     final origin = screenOrigin ?? Offset.zero;
     final size = screenSize ?? const Size(1280, 720);
     final windowSize = settings.desktopWindowSize;
+    final availableWidth = max(0.0, size.width - windowSize);
+    final availableHeight = max(0.0, size.height - windowSize);
     final next = Offset(
-      origin.dx + Random().nextDouble() * (size.width - windowSize),
-      origin.dy + Random().nextDouble() * (size.height - windowSize),
+      origin.dx + _random.nextDouble() * availableWidth,
+      origin.dy + _random.nextDouble() * availableHeight,
     );
     final start = await MultiWindowManager.current.getPosition();
 
+    if (!mounted || isDragging) return;
     setState(() {
       isMoving = true;
       currentGif = 'assets/move.gif';
       faceLeft = next.dx < start.dx;
     });
     await _animateWindowTo(next, speedPxPerSec: settings.desktopRoamSpeed);
-    if (isDragging) return;
+    if (!mounted || isDragging) return;
     setState(() {
       isMoving = false;
       currentGif = 'assets/idle1.gif';
@@ -440,42 +458,13 @@ class _PetStageState extends State<PetStage> {
     Offset target, {
     required double speedPxPerSec,
   }) async {
-    _moveTimer?.cancel();
-    _safeComplete(_moveCompleter);
     final start = await MultiWindowManager.current.getPosition();
-    final distance = (target - start).distance;
-    final durationMs =
-        max(_minMoveDurationMs, (distance / speedPxPerSec * 1000).round());
-    final duration = Duration(milliseconds: durationMs);
-    const frame = Duration(milliseconds: 16);
-    final steps = max(1, duration.inMilliseconds ~/ frame.inMilliseconds);
-    var tick = 0;
-
-    final completer = Completer<void>();
-    _moveCompleter = completer;
-    _moveTimer = Timer.periodic(frame, (timer) async {
-      if (isDragging) {
-        timer.cancel();
-        _safeComplete(completer);
-        return;
-      }
-      tick += 1;
-      final t = tick / steps;
-      if (t >= 1) {
-        timer.cancel();
-        await MultiWindowManager.current.setPosition(target);
-        _safeComplete(completer);
-        return;
-      }
-      final eased = Curves.easeInOut.transform(t);
-      final lerp = Offset(
-        start.dx + (target.dx - start.dx) * eased,
-        start.dy + (target.dy - start.dy) * eased,
-      );
-      await MultiWindowManager.current.setPosition(lerp);
-    });
-
-    return completer.future;
+    await _animateTo(
+      start,
+      target,
+      speedPxPerSec: speedPxPerSec,
+      move: MultiWindowManager.current.setPosition,
+    );
   }
 
   Future<void> _roamAndroidOverlay() async {
@@ -487,11 +476,12 @@ class _PetStageState extends State<PetStage> {
                 .instance.platformDispatcher.views.first.devicePixelRatio);
     final usable = _getAndroidUsableArea(screenSize, overlaySize);
     var next = Offset(
-      usable.left + Random().nextDouble() * usable.width,
-      usable.top + Random().nextDouble() * usable.height,
+      usable.left + _random.nextDouble() * usable.width,
+      usable.top + _random.nextDouble() * usable.height,
     );
 
     final current = await FlutterOverlayWindow.getOverlayPosition();
+    if (!mounted || isDragging) return;
     final start = Offset(current.x, current.y);
     setState(() {
       isMoving = true;
@@ -502,7 +492,7 @@ class _PetStageState extends State<PetStage> {
 
     await _animateOverlayTo(start, next,
         speedPxPerSec: settings.mobileRoamSpeed);
-    if (isDragging) return;
+    if (!mounted || isDragging) return;
     setState(() {
       isMoving = false;
       currentGif = 'assets/idle1.gif';
@@ -579,62 +569,56 @@ class _PetStageState extends State<PetStage> {
     Offset target, {
     required double speedPxPerSec,
   }) async {
-    _moveTimer?.cancel();
-    _safeComplete(_moveCompleter);
+    await _animateTo(
+      start,
+      target,
+      speedPxPerSec: speedPxPerSec,
+      move: (position) => FlutterOverlayWindow.moveOverlay(
+        OverlayPosition(position.dx, position.dy),
+      ),
+      onMoved: (position) {
+        if (mounted && settings.showOverlayDebug) {
+          setState(() {
+            overlayPosition = position;
+          });
+        }
+      },
+    );
+  }
+
+  Future<void> _animateTo(
+    Offset start,
+    Offset target, {
+    required double speedPxPerSec,
+    required Future<void> Function(Offset position) move,
+    void Function(Offset position)? onMoved,
+  }) async {
+    final generation = ++_moveGeneration;
     final distance = (target - start).distance;
+    final safeSpeed = max(1.0, speedPxPerSec);
     final durationMs =
-        max(_minMoveDurationMs, (distance / speedPxPerSec * 1000).round());
+        max(_minMoveDurationMs, (distance / safeSpeed * 1000).round());
     final duration = Duration(milliseconds: durationMs);
     const frame = Duration(milliseconds: 16);
     final steps = max(1, duration.inMilliseconds ~/ frame.inMilliseconds);
-    var tick = 0;
 
-    final completer = Completer<void>();
-    _moveCompleter = completer;
-    _moveTimer = Timer.periodic(frame, (timer) async {
-      if (isDragging) {
-        timer.cancel();
-        _safeComplete(completer);
-        return;
-      }
-      tick += 1;
+    for (var tick = 1; tick <= steps; tick += 1) {
+      await Future<void>.delayed(frame);
+      if (!mounted || isDragging || generation != _moveGeneration) return;
       final t = tick / steps;
-      if (t >= 1) {
-        timer.cancel();
-        await FlutterOverlayWindow.moveOverlay(
-          OverlayPosition(target.dx, target.dy),
-        );
-        if (settings.showOverlayDebug) {
-          setState(() {
-            overlayPosition = target;
-          });
-        }
-        _safeComplete(completer);
-        return;
-      }
       final eased = Curves.easeInOut.transform(t);
-      final lerp = Offset(
+      final position = Offset(
         start.dx + (target.dx - start.dx) * eased,
         start.dy + (target.dy - start.dy) * eased,
       );
-      await FlutterOverlayWindow.moveOverlay(
-        OverlayPosition(lerp.dx, lerp.dy),
-      );
-      if (settings.showOverlayDebug) {
-        setState(() {
-          overlayPosition = lerp;
-        });
-      }
-    });
-
-    return completer.future;
+      await move(position);
+      if (!mounted || generation != _moveGeneration) return;
+      onMoved?.call(position);
+    }
   }
 
   void _stopRoam({bool resetGif = true}) {
-    _moveTimer?.cancel();
-    _moveTimer = null;
-    _safeComplete(_moveCompleter);
-    _moveCompleter = null;
+    _moveGeneration += 1;
     if (isMoving) {
       setState(() {
         isMoving = false;
@@ -643,11 +627,6 @@ class _PetStageState extends State<PetStage> {
         }
       });
     }
-  }
-
-  void _safeComplete(Completer<void>? completer) {
-    if (completer == null || completer.isCompleted) return;
-    completer.complete();
   }
 
   @override

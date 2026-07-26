@@ -27,6 +27,7 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
   _OverlayStatus overlayStatus = _OverlayStatus.permissionNotGranted;
   bool overlayActive = false;
   bool hasPermission = false;
+  bool _isChangingOverlay = false;
 
   @override
   void initState() {
@@ -62,53 +63,68 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
   }
 
   Future<void> _startOverlay() async {
-    if (!Platform.isAndroid) return;
-    final granted = await FlutterOverlayWindow.isPermissionGranted();
-    if (!granted) {
-      await FlutterOverlayWindow.requestPermission();
-    }
-    final allowed = await FlutterOverlayWindow.isPermissionGranted();
-    if (!allowed) {
+    if (!Platform.isAndroid || _isChangingOverlay) return;
+    setState(() => _isChangingOverlay = true);
+    try {
+      final granted = await FlutterOverlayWindow.isPermissionGranted();
+      if (!granted) {
+        await FlutterOverlayWindow.requestPermission();
+      }
+      final allowed = await FlutterOverlayWindow.isPermissionGranted();
+      if (!mounted) return;
+      if (!allowed) {
+        setState(() {
+          hasPermission = false;
+          overlayStatus = _OverlayStatus.permissionNotGranted;
+        });
+        return;
+      }
+      hasPermission = true;
+
+      final l10n = AppLocalizations.of(context)!;
+      final mq = MediaQuery.of(context);
+      await FlutterOverlayWindow.showOverlay(
+        alignment: OverlayAlignment.topLeft,
+        height: widget.controller.value.androidOverlaySize.toInt(),
+        width: widget.controller.value.androidOverlaySize.toInt(),
+        enableDrag: true,
+        flag: widget.controller.value.clickThrough
+            ? OverlayFlag.clickThrough
+            : OverlayFlag.defaultFlag,
+        overlayTitle: l10n.overlayNotificationTitle,
+        overlayContent: l10n.overlayNotificationContent,
+        startPosition: OverlayPosition(mq.padding.left, mq.padding.top),
+      );
+      overlayActive = true;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _shareOverlayApplyData();
+
+      if (!mounted) return;
       setState(() {
-        hasPermission = false;
-        overlayStatus = _OverlayStatus.permissionNotGranted;
+        overlayStatus = _OverlayStatus.running;
       });
-      return;
+    } finally {
+      if (mounted) {
+        setState(() => _isChangingOverlay = false);
+      }
     }
-    hasPermission = true;
-
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-    final mq = MediaQuery.of(context);
-    await FlutterOverlayWindow.showOverlay(
-      alignment: OverlayAlignment.topLeft,
-      height: widget.controller.value.androidOverlaySize.toInt(),
-      width: widget.controller.value.androidOverlaySize.toInt(),
-      enableDrag: true,
-      flag: widget.controller.value.clickThrough
-          ? OverlayFlag.clickThrough
-          : OverlayFlag.defaultFlag,
-      overlayTitle: l10n.overlayNotificationTitle,
-      overlayContent: l10n.overlayNotificationContent,
-      startPosition: OverlayPosition(mq.padding.left, mq.padding.top),
-    );
-    overlayActive = true;
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    await _shareOverlayApplyData();
-
-    if (!mounted) return;
-    setState(() {
-      overlayStatus = _OverlayStatus.running;
-    });
   }
 
   Future<void> _stopOverlay() async {
-    await FlutterOverlayWindow.closeOverlay();
-    overlayActive = false;
-    if (mounted) {
-      setState(() {
-        overlayStatus = _OverlayStatus.stopped;
-      });
+    if (_isChangingOverlay) return;
+    setState(() => _isChangingOverlay = true);
+    try {
+      await FlutterOverlayWindow.closeOverlay();
+      overlayActive = false;
+      if (mounted) {
+        setState(() {
+          overlayStatus = _OverlayStatus.stopped;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isChangingOverlay = false);
+      }
     }
   }
 
@@ -200,8 +216,10 @@ class _AndroidOverlayLauncherState extends State<AndroidOverlayLauncher>
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: hasPermission
-                      ? (overlayActive ? _stopOverlay : _startOverlay)
-                      : _startOverlay,
+                      ? (_isChangingOverlay
+                          ? null
+                          : (overlayActive ? _stopOverlay : _startOverlay))
+                      : (_isChangingOverlay ? null : _startOverlay),
                   child: Text(
                     hasPermission
                         ? (overlayActive ? l10n.stopOverlay : l10n.startOverlay)
