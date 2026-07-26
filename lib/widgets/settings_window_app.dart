@@ -72,17 +72,7 @@ class _SettingsWindowAppState extends State<SettingsWindowApp> {
     _notifyTimer = Timer(const Duration(milliseconds: 200), () async {
       try {
         final current = widget.controller.value;
-        final payload = <String, dynamic>{
-          'petScale': current.petScale,
-          'desktopRoamSpeed': current.desktopRoamSpeed,
-          'mobileRoamSpeed': current.mobileRoamSpeed,
-          'androidOverlayScale': current.androidOverlayScale,
-          'showOverlayDebug': current.showOverlayDebug,
-          'clickThrough': current.clickThrough,
-          'launchAtStartup': current.launchAtStartup,
-          'languageCode': current.languageCode,
-        };
-        await invokeMainWindow('applySettings', payload);
+        await invokeMainWindow('applySettings', current.toMap());
       } catch (_) {}
     });
   }

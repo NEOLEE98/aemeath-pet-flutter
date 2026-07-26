@@ -141,24 +141,9 @@ class _DesktopWindowListener with WindowListener {
       case 'applySettings':
         final args = arguments;
         if (args is Map) {
-          settingsController.value = AppSettings(
-            petScale: (args['petScale'] as num?)?.toDouble() ??
-                settingsController.value.petScale,
-            desktopRoamSpeed: (args['desktopRoamSpeed'] as num?)?.toDouble() ??
-                settingsController.value.desktopRoamSpeed,
-            mobileRoamSpeed: (args['mobileRoamSpeed'] as num?)?.toDouble() ??
-                settingsController.value.mobileRoamSpeed,
-            androidOverlayScale:
-                (args['androidOverlayScale'] as num?)?.toDouble() ??
-                    settingsController.value.androidOverlayScale,
-            showOverlayDebug: args['showOverlayDebug'] as bool? ??
-                settingsController.value.showOverlayDebug,
-            clickThrough: args['clickThrough'] as bool? ??
-                settingsController.value.clickThrough,
-            launchAtStartup: args['launchAtStartup'] as bool? ??
-                settingsController.value.launchAtStartup,
-            languageCode: args['languageCode'] as String? ??
-                settingsController.value.languageCode,
+          settingsController.value = AppSettings.fromMap(
+            args,
+            fallback: settingsController.value,
           );
           await MultiWindowManager.current
               .setIgnoreMouseEvents(settingsController.value.clickThrough);
